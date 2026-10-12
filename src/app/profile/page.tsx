@@ -19,6 +19,7 @@ interface IProfile {
   bio: string;
   location: string;
   skills: string;
+  image: string;
 }
 
 const initialProfile: IProfile = {
@@ -27,6 +28,7 @@ const initialProfile: IProfile = {
   bio: "Learning Web Development with React, Next.js and TypeScript. Building projects and improving every day.",
   location: "Rajshahi, Bangladesh",
   skills: "React, Next.js, TypeScript",
+  image: "",
 };
 
 export default function ProfilePage() {
@@ -34,15 +36,21 @@ export default function ProfilePage() {
   const [formData, setFormData] = useState<IProfile>(initialProfile);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [draftImage, setDraftImage] = useState("");
+  const [imageEditorKey, setImageEditorKey] = useState(0);
 
   const handleEdit = () => {
     setFormData({ ...profile });
+    setDraftImage(profile.image);
+    setImageEditorKey((key) => key + 1);
     setIsEditing(true);
     setIsSaved(false);
   };
 
   const handleCancel = () => {
     setFormData({ ...profile });
+    setDraftImage(profile.image);
+    setImageEditorKey((key) => key + 1);
     setIsEditing(false);
   };
 
@@ -67,6 +75,7 @@ export default function ProfilePage() {
       bio: formData.bio.trim(),
       location: formData.location.trim(),
       skills: formData.skills.trim(),
+      image: draftImage,
     });
 
     setIsEditing(false);
@@ -93,8 +102,17 @@ export default function ProfilePage() {
 
           <div className="px-5 pb-7 sm:px-8">
             <div className="-mt-12 flex flex-wrap items-end justify-between gap-4 sm:-mt-16">
-              <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-slate-900 bg-slate-800 text-3xl font-bold text-emerald-400 sm:h-32 sm:w-32 sm:text-4xl">
-                {profile.name.charAt(0).toUpperCase() || "U"}
+              <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-slate-900 bg-slate-800 text-3xl font-bold text-emerald-400 sm:h-32 sm:w-32 sm:text-4xl">
+                {profile.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={profile.image}
+                    alt={`${profile.name}'s profile`}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  profile.name.charAt(0).toUpperCase() || "U"
+                )}
               </div>
 
               {!isEditing && (
@@ -207,8 +225,23 @@ export default function ProfilePage() {
 
                 <div>
                   <ProfileImageUpload
+                    key={imageEditorKey}
+                    initialImage={draftImage}
                     onImageChange={(file) => {
-                      console.log("Selected image:", file);
+                      if (!file) {
+                        setDraftImage("");
+                        return;
+                      }
+
+                      const reader = new FileReader();
+
+                      reader.onload = () => {
+                        if (typeof reader.result === "string") {
+                          setDraftImage(reader.result);
+                        }
+                      };
+
+                      reader.readAsDataURL(file);
                     }}
                   />
                 </div>
