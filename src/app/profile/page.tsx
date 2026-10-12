@@ -34,26 +34,39 @@ const initialProfile: IProfile = {
 export default function ProfilePage() {
   const [profile, setProfile] = useState<IProfile>(initialProfile);
   const [formData, setFormData] = useState<IProfile>(initialProfile);
+
   const [isEditing, setIsEditing] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
-  const [draftImage, setDraftImage] = useState("");
-  const [imageEditorKey, setImageEditorKey] = useState(0);
 
+  const [draftImage, setDraftImage] = useState("");
+  const [draftFile, setDraftFile] = useState<File | null>(null);
+
+  const [imageEditorKey, setImageEditorKey] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+
+  // Start editing the profile
   const handleEdit = () => {
     setFormData({ ...profile });
     setDraftImage(profile.image);
+    setDraftFile(null);
+    setUploadError("");
     setImageEditorKey((key) => key + 1);
     setIsEditing(true);
     setIsSaved(false);
   };
 
+  // Cancel editing and discard changes
   const handleCancel = () => {
     setFormData({ ...profile });
     setDraftImage(profile.image);
+    setDraftFile(null);
+    setUploadError("");
     setImageEditorKey((key) => key + 1);
     setIsEditing(false);
   };
 
+  // Handle input changes
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
@@ -65,26 +78,72 @@ export default function ProfilePage() {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  // Upload image and save profile
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    setProfile({
-      ...formData,
-      name: formData.name.trim(),
-      username: formData.username.trim(),
-      bio: formData.bio.trim(),
-      location: formData.location.trim(),
-      skills: formData.skills.trim(),
-      image: draftImage,
-    });
+    if (isUploading) return;
 
-    setIsEditing(false);
-    setIsSaved(true);
+    setIsUploading(true);
+    setUploadError("");
+    setIsSaved(false);
+
+    try {
+      let imageUrl = draftImage;
+
+      // Upload the selected image to Cloudinary
+      if (draftFile) {
+        const uploadData = new FormData();
+        uploadData.append("file", draftFile);
+
+        const response = await fetch("/api/upload/profile", {
+          method: "POST",
+          body: uploadData,
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || "Image upload failed");
+        }
+
+        if (!result.imageUrl) {
+          throw new Error("Image URL was not returned");
+        }
+
+        imageUrl = result.imageUrl;
+      }
+
+      // Update the profile after a successful upload
+      const updatedProfile: IProfile = {
+        ...formData,
+        name: formData.name.trim(),
+        username: formData.username.trim(),
+        bio: formData.bio.trim(),
+        location: formData.location.trim(),
+        skills: formData.skills.trim(),
+        image: imageUrl,
+      };
+
+      setProfile(updatedProfile);
+      setFormData(updatedProfile);
+      setDraftImage(imageUrl);
+      setDraftFile(null);
+      setIsEditing(false);
+      setIsSaved(true);
+    } catch (error) {
+      setUploadError(
+        error instanceof Error ? error.message : "Something went wrong",
+      );
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-12 text-white">
       <div className="mx-auto max-w-3xl">
+        {/* Page heading */}
         <div className="mb-8">
           <p className="mb-2 text-sm font-medium text-emerald-400">
             PROFILE MANAGEMENT
@@ -97,10 +156,13 @@ export default function ProfilePage() {
           </p>
         </div>
 
+        {/* Profile card */}
         <section className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-xl">
+          {/* Cover */}
           <div className="h-36 bg-linear-to-r from-emerald-600 via-teal-700 to-cyan-800 sm:h-48" />
 
           <div className="px-5 pb-7 sm:px-8">
+            {/* Avatar and edit button */}
             <div className="-mt-12 flex flex-wrap items-end justify-between gap-4 sm:-mt-16">
               <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-slate-900 bg-slate-800 text-3xl font-bold text-emerald-400 sm:h-32 sm:w-32 sm:text-4xl">
                 {profile.image ? (
@@ -117,8 +179,9 @@ export default function ProfilePage() {
 
               {!isEditing && (
                 <button
+                  type="button"
                   onClick={handleEdit}
-                  className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 font-semibold text-slate-950 transition hover:bg-emerald-400 cursor-pointer"
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 font-semibold text-slate-950 transition hover:bg-emerald-400"
                 >
                   <Pencil size={17} />
                   Edit Profile
@@ -127,18 +190,22 @@ export default function ProfilePage() {
             </div>
 
             {isEditing ? (
+              /* Edit form */
               <form onSubmit={handleSubmit} className="mt-6 space-y-5">
                 <div>
                   <h2 className="text-2xl font-bold">Edit Profile</h2>
+
                   <p className="mt-1 text-sm text-slate-400">
                     Update your information below.
                   </p>
                 </div>
 
+                {/* Full name */}
                 <div className="space-y-1.5">
                   <label htmlFor="name" className="text-sm font-medium">
                     Full Name
                   </label>
+
                   <input
                     id="name"
                     name="name"
@@ -151,10 +218,12 @@ export default function ProfilePage() {
                   />
                 </div>
 
+                {/* Username */}
                 <div className="space-y-1.5">
                   <label htmlFor="username" className="text-sm font-medium">
                     Username
                   </label>
+
                   <input
                     id="username"
                     name="username"
@@ -167,15 +236,18 @@ export default function ProfilePage() {
                     title="Use letters, numbers and underscores only."
                     className="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 outline-none focus:border-emerald-400"
                   />
+
                   <p className="text-xs text-slate-500">
                     Letters, numbers and underscores only.
                   </p>
                 </div>
 
+                {/* Bio */}
                 <div className="space-y-1.5">
                   <label htmlFor="bio" className="text-sm font-medium">
                     Bio
                   </label>
+
                   <textarea
                     id="bio"
                     name="bio"
@@ -186,15 +258,18 @@ export default function ProfilePage() {
                     placeholder="Tell us about yourself..."
                     className="w-full resize-y rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 outline-none focus:border-emerald-400"
                   />
+
                   <p className="text-right text-xs text-slate-500">
                     {formData.bio.length}/250
                   </p>
                 </div>
 
+                {/* Location */}
                 <div className="space-y-1.5">
                   <label htmlFor="location" className="text-sm font-medium">
                     Location
                   </label>
+
                   <input
                     id="location"
                     name="location"
@@ -205,10 +280,12 @@ export default function ProfilePage() {
                   />
                 </div>
 
+                {/* Skills */}
                 <div className="space-y-1.5">
                   <label htmlFor="skills" className="text-sm font-medium">
                     Skills
                   </label>
+
                   <input
                     id="skills"
                     name="skills"
@@ -218,47 +295,52 @@ export default function ProfilePage() {
                     placeholder="React, Next.js, TypeScript"
                     className="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 outline-none focus:border-emerald-400"
                   />
+
                   <p className="text-xs text-slate-500">
                     Separate skills with commas.
                   </p>
                 </div>
 
-                <div>
-                  <ProfileImageUpload
-                    key={imageEditorKey}
-                    initialImage={draftImage}
-                    onImageChange={(file) => {
-                      if (!file) {
-                        setDraftImage("");
-                        return;
-                      }
+                {/* Profile image upload */}
+                <ProfileImageUpload
+                  key={imageEditorKey}
+                  initialImage={draftImage}
+                  onImageChange={(file) => {
+                    setDraftFile(file);
+                    setUploadError("");
 
-                      const reader = new FileReader();
+                    if (!file) {
+                      setDraftImage("");
+                    }
+                  }}
+                />
 
-                      reader.onload = () => {
-                        if (typeof reader.result === "string") {
-                          setDraftImage(reader.result);
-                        }
-                      };
+                {/* Upload error */}
+                {uploadError && (
+                  <p
+                    role="alert"
+                    className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400"
+                  >
+                    {uploadError}
+                  </p>
+                )}
 
-                      reader.readAsDataURL(file);
-                    }}
-                  />
-                </div>
-
+                {/* Form actions */}
                 <div className="flex flex-wrap gap-3 border-t border-slate-800 pt-5">
                   <button
                     type="submit"
-                    className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-5 py-2.5 font-semibold text-slate-950 transition hover:bg-emerald-400 cursor-pointer"
+                    disabled={isUploading}
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-emerald-500 px-5 py-2.5 font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Save size={17} />
-                    Save Changes
+                    {isUploading ? "Uploading..." : "Save Changes"}
                   </button>
 
                   <button
                     type="button"
                     onClick={handleCancel}
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-700 px-5 py-2.5 font-medium transition hover:bg-slate-800 cursor-pointer"
+                    disabled={isUploading}
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-700 px-5 py-2.5 font-medium transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <X size={17} />
                     Cancel
@@ -266,6 +348,7 @@ export default function ProfilePage() {
                 </div>
               </form>
             ) : (
+              /* Profile details */
               <>
                 <div className="mt-5 flex flex-wrap items-center gap-3">
                   <h2 className="text-2xl font-bold sm:text-3xl">
@@ -288,6 +371,7 @@ export default function ProfilePage() {
                   {profile.location || "Location not added"}
                 </div>
 
+                {/* Skills list */}
                 <div className="mt-7">
                   <h3 className="mb-3 flex items-center gap-2 font-semibold">
                     <Code2 size={18} className="text-emerald-400" />
@@ -316,6 +400,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
+                {/* Social links */}
                 <div className="mt-7 flex flex-wrap gap-3 border-t border-slate-800 pt-5">
                   <a
                     href="https://github.com/"
@@ -338,6 +423,7 @@ export default function ProfilePage() {
                   </a>
                 </div>
 
+                {/* Success message */}
                 {isSaved && (
                   <p
                     role="status"
