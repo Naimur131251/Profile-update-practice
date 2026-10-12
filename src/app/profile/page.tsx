@@ -11,6 +11,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { FaGithub } from "react-icons/fa";
+import ProfileImageUpload from "@/components/ProfileImageUpload";
 
 interface IProfile {
   name: string;
@@ -202,6 +203,14 @@ export default function ProfilePage() {
                   <p className="text-xs text-slate-500">
                     Separate skills with commas.
                   </p>
+                </div>
+
+                <div>
+                  <ProfileImageUpload
+                    onImageChange={(file) => {
+                      console.log("Selected image:", file);
+                    }}
+                  />
                 </div>
 
                 <div className="flex flex-wrap gap-3 border-t border-slate-800 pt-5">
