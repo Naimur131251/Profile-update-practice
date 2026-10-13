@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   MapPin,
   Code2,
@@ -79,66 +79,96 @@ export default function ProfilePage() {
   };
 
   // Upload image and save profile
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
-    if (isUploading) return;
 
     setIsUploading(true);
     setUploadError("");
     setIsSaved(false);
 
     try {
-      let imageUrl = draftImage;
+      // 1. Existing image URL ধরে রাখি
+      let imageUrl = formData.image;
 
-      // Upload the selected image to Cloudinary
+      // 2. নতুন ছবি থাকলে Cloudinary-তে upload করি
       if (draftFile) {
         const uploadData = new FormData();
         uploadData.append("file", draftFile);
 
-        const response = await fetch("/api/upload/profile", {
+        const uploadResponse = await fetch("/api/upload/profile", {
           method: "POST",
           body: uploadData,
         });
 
-        const result = await response.json();
+        const uploadResult = await uploadResponse.json();
 
-        if (!response.ok) {
-          throw new Error(result.error || "Image upload failed");
+        if (!uploadResponse.ok) {
+          throw new Error(
+            uploadResult.error || uploadResult.message || "Image upload failed",
+          );
         }
 
-        if (!result.imageUrl) {
-          throw new Error("Image URL was not returned");
-        }
-
-        imageUrl = result.imageUrl;
+        imageUrl = uploadResult.imageUrl;
       }
 
-      // Update the profile after a successful upload
-      const updatedProfile: IProfile = {
-        ...formData,
-        name: formData.name.trim(),
-        username: formData.username.trim(),
-        bio: formData.bio.trim(),
-        location: formData.location.trim(),
-        skills: formData.skills.trim(),
-        image: imageUrl,
-      };
+      // 3. সব profile data MongoDB API-তে পাঠাই
+      const response = await fetch("/api/profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...formData,
+          image: imageUrl,
+        }),
+      });
 
-      setProfile(updatedProfile);
-      setFormData(updatedProfile);
-      setDraftImage(imageUrl);
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Profile save failed");
+      }
+
+      // 4. Database থেকে পাওয়া saved data দিয়ে UI update করি
+      setProfile(result.profile);
+      setFormData(result.profile);
+      setDraftImage(result.profile.image);
       setDraftFile(null);
       setIsEditing(false);
       setIsSaved(true);
     } catch (error) {
-      setUploadError(
-        error instanceof Error ? error.message : "Something went wrong",
-      );
+      const message =
+        error instanceof Error ? error.message : "Something went wrong";
+
+      setUploadError(message);
     } finally {
       setIsUploading(false);
     }
   };
+
+  useEffect(() => {
+    async function loadProfile() {
+      try {
+        const response = await fetch("/api/profile");
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || "Failed to load profile");
+        }
+
+        if (result.profile) {
+          setProfile(result.profile);
+          setFormData(result.profile);
+          setDraftImage(result.profile.image);
+        }
+      } catch (error) {
+        console.error("Profile load error:", error);
+      }
+    }
+
+    loadProfile();
+  }, []);
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-12 text-white">
